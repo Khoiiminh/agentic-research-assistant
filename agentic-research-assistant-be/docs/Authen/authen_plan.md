@@ -8,7 +8,7 @@ Stateless authentication using a dual-token strategy. The server stores **no ses
 |------|-------------|-----|
 | Password | PostgreSQL `user.password_hash` | bcrypt hash (cost 10), never plaintext |
 | Access token | Client (memory / LocalStorage) | JWT signed with `JWT_ACCESS_SECRET`, 15m TTL |
-| Refresh token | Browser HttpOnly cookie | JWT signed with `JWT_REFRESH_SECRET`, 7d TTL |
+| Refresh token | Response body + Browser HttpOnly cookie | JWT signed with `JWT_REFRESH_SECRET`, 7d TTL |
 | Session state | Nowhere on server | Stateless — verified via JWT signature only |
 
 ---
@@ -64,38 +64,18 @@ src/
 └── app.module.ts
 ```
 
----
 
-## Environment Variables (repo root `.env.development`)
-
-```
-DB_HOST=aws-1-ap-southeast-2.pooler.supabase.com
-DB_PORT=6543
-DB_USER=postgres.<project-ref>
-DB_PASWORD=<password>              # note: one 's' — typo kept for consistency
-DB_DATABASE=postgres
-
-JWT_ACCESS_SECRET=<openssl rand -base64 64>
-JWT_ACCESS_EXPIRES_IN=15m
-
-JWT_REFRESH_SECRET=<openssl rand -base64 64>
-JWT_REFRESH_EXPIRES_IN=7d
-```
-
-env file loaded via `envFilePath: '../.env.development'` in `app.module.ts`.
-Database: Supabase PostgreSQL via Transaction pooler (port `6543`).
-SSL required. `prepareThreshold: 0` disables prepared statements (required for transaction pooler).
 
 ---
 
 ## API Endpoints
 
-| Method | Path           | Auth Required | Description                        |
-|--------|----------------|---------------|------------------------------------|
-| POST   | /auth/register | Public        | Create account, return tokens      |
-| POST   | /auth/login    | Public        | Verify credentials, return tokens  |
-| POST   | /auth/logout   | Public        | Clear refresh token cookie         |
-| POST   | /auth/refresh  | Cookie        | Issue new access token             |
+| Method | Path           | Auth Required | Description                                         |
+|--------|----------------|---------------|-----------------------------------------------------|
+| POST   | /auth/register | Public        | Create account, return both tokens + set cookie     |
+| POST   | /auth/login    | Public        | Verify credentials, return both tokens + set cookie |
+| POST   | /auth/refresh  | Cookie        | Rotate both tokens, return new pair + set cookie    |
+| POST   | /auth/logout   | Public        | Clear refresh token cookie                          |
 
 ---
 
@@ -110,7 +90,7 @@ SSL required. `prepareThreshold: 0` disables prepared statements (required for t
 5. Sign access token (JWT, 15m, `JWT_ACCESS_SECRET`)
 6. Sign refresh token (JWT, 7d, `JWT_REFRESH_SECRET`)
 7. `Set-Cookie: refresh_token=...; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`
-8. Return **201** `{ access_token, user: { id, email } }`
+8. Return **201** `{ access_token, refresh_token, user: { id, email } }`
 
 ---
 
@@ -123,7 +103,7 @@ SSL required. `prepareThreshold: 0` disables prepared statements (required for t
    - Same error message for both cases — prevents leaking which field failed
 3. Sign access token + refresh token (same as register)
 4. Set refresh token cookie
-5. Return **200** `{ access_token, user: { id, email } }`
+5. Return **200** `{ access_token, refresh_token, user: { id, email } }`
 
 ---
 
@@ -131,14 +111,14 @@ SSL required. `prepareThreshold: 0` disables prepared statements (required for t
 
 **Requires:** `refresh_token` HttpOnly cookie (sent automatically by browser)
 
-1. Read `refresh_token` from `req.cookies`
-2. If missing → **401 Unauthorized**
-3. `JwtService.verify(token, { secret: JWT_REFRESH_SECRET })` — if expired/invalid → **401**
-4. `UserService.findById(payload.sub)` — if not found → **401**
-5. Sign new access token (15m)
-6. Return **200** `{ access_token }`
+Uses **token rotation** — both tokens are reissued on every call, extending the session window.
 
-Note: no new refresh token is issued — the cookie retains its original 7d expiry.
+1. Read `refresh_token` from `req.cookies` — if missing → **401 Unauthorized**
+2. `JwtService.verify(token, { secret: JWT_REFRESH_SECRET })` — if expired/invalid → **401**
+3. `UserService.findById(payload.sub)` — if not found → **401**
+4. Sign new access token (15m) + new refresh token (7d)
+5. `Set-Cookie: refresh_token=...; HttpOnly; Secure; SameSite=Strict; Max-Age=604800` (replaces old cookie)
+6. Return **200** `{ access_token, refresh_token }`
 
 ---
 
@@ -174,9 +154,10 @@ app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 ## Verification Steps
 
 1. `npm run start:dev` — server starts on port 3000, TypeORM creates `user` table
-2. `POST /auth/register` → 201 + `access_token` in body + `Set-Cookie` header
+2. `POST /auth/register` → 201, body has `access_token`, `refresh_token`, `user` + `Set-Cookie` header
 3. `POST /auth/register` same email → 409
-4. `POST /auth/login` valid credentials → 200 + `access_token` + `Set-Cookie`
+4. `POST /auth/login` valid credentials → 200, body has `access_token`, `refresh_token`, `user` + `Set-Cookie`
 5. `POST /auth/login` wrong password → 401
-6. `POST /auth/refresh` with cookie → 200 new `access_token`
-7. `POST /auth/logout` → 200, `Set-Cookie` with empty value and `Max-Age=0`
+6. `POST /auth/refresh` with valid cookie → 200, new `access_token` + `refresh_token` in body, new `Set-Cookie`
+7. `POST /auth/refresh` without cookie → 401
+8. `POST /auth/logout` → 200, `Set-Cookie` with empty value and `Max-Age=0`
