@@ -66,7 +66,7 @@ src/
 
 ---
 
-## Environment Variables (repo root `.env`)
+## Environment Variables (repo root `.env.development`)
 
 ```
 DB_HOST=aws-1-ap-southeast-2.pooler.supabase.com
@@ -82,6 +82,7 @@ JWT_REFRESH_SECRET=<openssl rand -base64 64>
 JWT_REFRESH_EXPIRES_IN=7d
 ```
 
+env file loaded via `envFilePath: '../.env.development'` in `app.module.ts`.
 Database: Supabase PostgreSQL via Transaction pooler (port `6543`).
 SSL required. `prepareThreshold: 0` disables prepared statements (required for transaction pooler).
 

@@ -24,14 +24,14 @@ npm run test:cov       # coverage report
 ```
 
 - Runs on port `3000` by default (overridable via `PORT` env var)
-- Environment loaded from `../.env` (repo root) via `@nestjs/config` (global) — single `.env` shared with frontend
+- Environment loaded from `../.env.development` (repo root) via `@nestjs/config` (global) — single `.env.development` shared with frontend
 - Uses SWC for fast compilation (`-b swc` flag)
 - Path alias `@/*` maps to `src/*`
 - ESM (`"type": "module"`): imports must use `.js` extension even for `.ts` source files
 
 ### Environment Variables
 
-The `.env` file lives at the repo root. Required variables:
+The `.env.development` file lives at the repo root. Required variables:
 
 ```
 DB_HOST=aws-1-ap-southeast-2.pooler.supabase.com
