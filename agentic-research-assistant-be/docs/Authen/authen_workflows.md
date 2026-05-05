@@ -7,7 +7,7 @@ Authentication uses a **stateless dual-token strategy** — the server stores no
 | Token | Lifetime | Where it lives | How it travels |
 |-------|----------|----------------|----------------|
 | Access token | 15 min | Client memory or LocalStorage | `Authorization: Bearer <token>` header |
-| Refresh token | 7 days | Browser HttpOnly cookie | Sent automatically by the browser on every request to the same origin |
+| Refresh token | 7 days | Response body + Browser HttpOnly cookie | Returned in body on login/register; cookie sent automatically by browser |
 
 Both tokens are signed JWTs with payload `{ sub: user.id, email }`. The server only needs the secrets to verify them — no session table, no Redis, no in-memory store.
 
@@ -23,21 +23,25 @@ plaintext password ──► bcrypt.hash(password, 10) ──► $2b$10$... (sto
 ```
 On login, `bcrypt.compare(plaintext, hash)` verifies the password without ever decrypting it. bcrypt is intentionally slow (cost factor 10) to resist brute-force attacks.
 
-### Access Token — stored on the client, never on the server
+### Access Token — returned in response body, never stored on the server
 
-After login/register, the server signs a JWT and returns it in the response body:
+After login/register, the server returns both tokens in the response body:
 ```json
-{ "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": { "id": "...", "email": "..." }
+}
 ```
-The client (browser/app) is responsible for storing it — typically in memory or LocalStorage. The server has no record of it. On every protected API call, the client sends it in the header:
+The client stores the `access_token` — typically in memory or LocalStorage. On every protected API call, the client sends it in the header:
 ```
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 The server verifies the signature using `JWT_ACCESS_SECRET`. If valid and not expired, the request proceeds. **No database lookup is needed** — the token is self-contained.
 
-### Refresh Token — stored in an HttpOnly cookie, never on the server
+### Refresh Token — returned in response body AND set as an HttpOnly cookie
 
-After login/register, the server issues a `Set-Cookie` header:
+After login/register, the `refresh_token` appears in the JSON response body and is also set via `Set-Cookie`:
 ```
 Set-Cookie: refresh_token=eyJ...; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
 ```
@@ -48,7 +52,7 @@ Key properties of this cookie:
 - **SameSite=Strict** — only sent on same-site requests. Protects against CSRF attacks.
 - **Max-Age=7d** — the browser automatically discards it after 7 days.
 
-The server never stores the refresh token. On `POST /auth/refresh`, the browser automatically includes the cookie, the server verifies the JWT signature, and issues a new access token. No token table in the database.
+The server never stores the refresh token. Both delivery mechanisms (body + cookie) give the client flexibility: browser-based clients can rely on the automatic cookie, while other clients can use the value from the response body.
 
 ---
 
@@ -75,7 +79,8 @@ Client                          NestJS                         PostgreSQL
   |                               |                                |
   |<-- 201 Created -------------- |                                |
   |    Set-Cookie: refresh_token  | ← stored in browser cookie jar|
-  |    { access_token, user }     | ← client stores in memory/LS  |
+  |    { access_token,            | ← client stores in memory/LS  |
+  |      refresh_token, user }    |                                |
 ```
 
 **What is stored where after register:**
@@ -111,7 +116,8 @@ Client                          NestJS                         PostgreSQL
   |                               |                                |
   |<-- 200 OK ------------------- |                                |
   |    Set-Cookie: refresh_token  | ← replaces previous cookie     |
-  |    { access_token, user }     | ← client updates stored token  |
+  |    { access_token,            | ← client updates stored tokens |
+  |      refresh_token, user }    |                                |
 ```
 
 **Error cases (both return the same message — never reveal which field failed):**
@@ -143,7 +149,7 @@ The server does **not** query the database to validate the access token — the 
 
 **Endpoint:** `POST /auth/refresh`
 
-Called when the access token expires (client receives 401 on a protected route).
+Called when the access token expires (client receives 401 on a protected route). Uses **token rotation** — both tokens are reissued on every refresh, and the cookie is replaced with a fresh 7-day window.
 
 ```
 Client                          NestJS                         PostgreSQL
@@ -159,12 +165,15 @@ Client                          NestJS                         PostgreSQL
   |                               |<-- user record --------------- |
   |                               |                                |
   |                               | sign new access_token (15m)    |
+  |                               | sign new refresh_token (7d)    |
   |                               |                                |
   |<-- 200 OK ------------------- |                                |
-  |    { access_token }           | ← client replaces stored token |
+  |    Set-Cookie: refresh_token  | ← cookie replaced, 7d reset   |
+  |    { access_token,            | ← client replaces stored tokens|
+  |      refresh_token }          |                                |
 ```
 
-The DB lookup on refresh confirms the user still exists (e.g. account not deleted). No new refresh token is issued — the existing cookie keeps its original 7-day expiry.
+The DB lookup confirms the user still exists (e.g. account not deleted). Token rotation means the old refresh token is invalidated implicitly — a new one is issued with a fresh 7-day expiry on every call.
 
 **Error cases:**
 - Cookie missing → **401 Unauthorized**
@@ -222,21 +231,23 @@ Returns **401 Unauthorized** automatically for missing, expired, or tampered tok
 Register / Login
       │
       ├──► access_token (15m)
+      │      returned: response body
       │      stored: client memory/LocalStorage
       │      sent: Authorization: Bearer header
       │      verified: JWT signature only (no DB)
       │
       └──► refresh_token (7d)
-             stored: HttpOnly cookie (browser only, JS cannot read)
-             sent: automatically by browser
-             verified: JWT signature + DB user lookup
+             returned: response body + Set-Cookie (HttpOnly)
+             stored: client storage + browser cookie jar
+             verified: JWT signature only (no DB)
 
-access_token expires
+access_token expires → 401 on protected route
       │
       ▼
-POST /auth/refresh (cookie sent automatically)
+POST /auth/refresh (cookie sent automatically by browser)
       │
-      └──► new access_token (15m)
+      ├──► new access_token (15m)    → client replaces stored token
+      └──► new refresh_token (7d)    → cookie replaced, 7d window resets
 
 refresh_token expires or logout
       │

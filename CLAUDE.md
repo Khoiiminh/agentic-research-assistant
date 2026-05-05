@@ -66,7 +66,7 @@ npm run lint           # ESLint
 The backend follows standard NestJS module structure: `AppModule` imports feature modules, each module groups its `Controller`, `Service`, and any providers. New features should be added as NestJS modules under `src/`.
 
 Current backend modules:
-- `AuthModule` (`src/auth/`) — register, login, logout, token refresh. Access token via Bearer header, refresh token via HttpOnly cookie.
+- `AuthModule` (`src/auth/`) — register, login, logout, token refresh. Both tokens returned in response body on login/register/refresh; refresh token also set as HttpOnly cookie (auto-sent by browser). Access token sent via `Authorization: Bearer` header. Token rotation: every `/auth/refresh` call issues a new pair of tokens.
 - `UserModule` (`src/user/`) — user entity + CRUD helpers consumed by AuthModule.
 
 To protect a route with JWT, apply `@UseGuards(JwtAuthGuard)` — the guard is at `src/auth/guards/jwt-auth.guard.ts`. The authenticated user is available as `req.user = { userId, email }`.
