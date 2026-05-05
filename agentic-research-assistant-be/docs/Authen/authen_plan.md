@@ -64,27 +64,7 @@ src/
 └── app.module.ts
 ```
 
----
 
-## Environment Variables (repo root `.env.development`)
-
-```
-DB_HOST=aws-1-ap-southeast-2.pooler.supabase.com
-DB_PORT=6543
-DB_USER=postgres.<project-ref>
-DB_PASWORD=<password>              # note: one 's' — typo kept for consistency
-DB_DATABASE=postgres
-
-JWT_ACCESS_SECRET=<openssl rand -base64 64>
-JWT_ACCESS_EXPIRES_IN=15m
-
-JWT_REFRESH_SECRET=<openssl rand -base64 64>
-JWT_REFRESH_EXPIRES_IN=7d
-```
-
-env file loaded via `envFilePath: '../.env.development'` in `app.module.ts`.
-Database: Supabase PostgreSQL via Transaction pooler (port `6543`).
-SSL required. `prepareThreshold: 0` disables prepared statements (required for transaction pooler).
 
 ---
 
