@@ -1,0 +1,136 @@
+Authentication API — cURL Reference
+====================================
+Base URL: http://localhost:3000
+All requests with a body use Content-Type: application/json.
+Refresh token is sent automatically as a cookie (-b / -c flags).
+
+
+────────────────────────────────────────
+1. REGISTER
+   POST /auth/register
+────────────────────────────────────────
+
+# Success (201 Created)
+curl -s -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"secret123","confirmPassword":"secret123"}' \
+  -c cookies.txt | jq
+
+# Expected response:
+# {
+#   "access_token": "<jwt>",
+#   "user": { "id": "<uuid>", "email": "user@example.com" }
+# }
+# Set-Cookie: refresh_token=<jwt>; HttpOnly; Secure; SameSite=Strict
+
+
+# Error — email already registered (409 Conflict)
+curl -s -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"secret123","confirmPassword":"secret123"}' | jq
+
+
+# Error — passwords do not match (400 Bad Request)
+curl -s -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"secret123","confirmPassword":"wrong"}' | jq
+
+
+# Error — invalid email (400 Bad Request)
+curl -s -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"not-an-email","password":"secret123","confirmPassword":"secret123"}' | jq
+
+
+────────────────────────────────────────
+2. LOGIN
+   POST /auth/login
+────────────────────────────────────────
+
+# Success (200 OK) — saves refresh token cookie to cookies.txt
+curl -s -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"secret123"}' \
+  -c cookies.txt | jq
+
+# Expected response:
+# {
+#   "access_token": "<jwt>",
+#   "user": { "id": "<uuid>", "email": "user@example.com" }
+# }
+# Set-Cookie: refresh_token=<jwt>; HttpOnly; Secure; SameSite=Strict
+
+
+# Error — wrong password (401 Unauthorized)
+curl -s -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"wrongpassword"}' | jq
+
+
+# Error — email not found (401 Unauthorized)
+curl -s -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"nobody@example.com","password":"secret123"}' | jq
+
+
+────────────────────────────────────────
+3. REFRESH ACCESS TOKEN
+   POST /auth/refresh
+   Requires: refresh_token cookie (set during login/register)
+────────────────────────────────────────
+
+# Success (200 OK) — reads cookie from cookies.txt
+curl -s -X POST http://localhost:3000/auth/refresh \
+  -b cookies.txt | jq
+
+# Expected response:
+# {
+#   "access_token": "<new_jwt>"
+# }
+
+
+# Error — no cookie present (401 Unauthorized)
+curl -s -X POST http://localhost:3000/auth/refresh | jq
+
+
+────────────────────────────────────────
+4. LOGOUT
+   POST /auth/logout
+────────────────────────────────────────
+
+# Success (200 OK) — clears the refresh_token cookie
+curl -s -X POST http://localhost:3000/auth/logout \
+  -b cookies.txt -c cookies.txt | jq
+
+# Expected response:
+# {
+#   "message": "Logged out successfully"
+# }
+# Set-Cookie: refresh_token=; maxAge=0  (cookie cleared)
+
+
+────────────────────────────────────────
+5. ACCESSING A PROTECTED ROUTE (example)
+   Requires: Authorization header with access_token
+────────────────────────────────────────
+
+# Store the access token from login/register first:
+ACCESS_TOKEN=$(curl -s -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"secret123"}' \
+  -c cookies.txt | jq -r '.access_token')
+
+# Use it on a protected endpoint:
+curl -s http://localhost:3000/some-protected-route \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | jq
+
+# Error — missing or expired token (401 Unauthorized)
+curl -s http://localhost:3000/some-protected-route | jq
+
+
+────────────────────────────────────────
+NOTE: cookies.txt
+  -c cookies.txt  saves cookies received from the server
+  -b cookies.txt  sends saved cookies back to the server
+  Both flags together keep the cookie jar in sync across calls.
+────────────────────────────────────────
