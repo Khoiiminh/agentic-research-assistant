@@ -2,14 +2,53 @@
 
 ## Overview
 
-Authentication uses a **dual-token strategy**:
+Authentication uses a **stateless dual-token strategy** — the server stores nothing in memory or database about active sessions. All session state lives on the client.
 
-| Token | Lifetime | Transport | Storage (client) |
-|-------|----------|-----------|------------------|
-| Access token | 15 minutes | `Authorization: Bearer <token>` header | Client memory / LocalStorage |
-| Refresh token | 7 days | `Set-Cookie: refresh_token` (HttpOnly) | Browser cookie (not JS-accessible) |
+| Token | Lifetime | Where it lives | How it travels |
+|-------|----------|----------------|----------------|
+| Access token | 15 min | Client memory or LocalStorage | `Authorization: Bearer <token>` header |
+| Refresh token | 7 days | Browser HttpOnly cookie | Sent automatically by the browser on every request to the same origin |
 
-Both tokens are signed JWTs with payload `{ sub: user.id, email }`. They use **separate secrets** so a leaked access token cannot be used to forge a refresh token.
+Both tokens are signed JWTs with payload `{ sub: user.id, email }`. The server only needs the secrets to verify them — no session table, no Redis, no in-memory store.
+
+---
+
+## How Credentials Are Stored
+
+### Password — stored as a bcrypt hash in PostgreSQL
+
+The plaintext password is never saved. On register/login:
+```
+plaintext password ──► bcrypt.hash(password, 10) ──► $2b$10$... (stored in user.password_hash)
+```
+On login, `bcrypt.compare(plaintext, hash)` verifies the password without ever decrypting it. bcrypt is intentionally slow (cost factor 10) to resist brute-force attacks.
+
+### Access Token — stored on the client, never on the server
+
+After login/register, the server signs a JWT and returns it in the response body:
+```json
+{ "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }
+```
+The client (browser/app) is responsible for storing it — typically in memory or LocalStorage. The server has no record of it. On every protected API call, the client sends it in the header:
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+The server verifies the signature using `JWT_ACCESS_SECRET`. If valid and not expired, the request proceeds. **No database lookup is needed** — the token is self-contained.
+
+### Refresh Token — stored in an HttpOnly cookie, never on the server
+
+After login/register, the server issues a `Set-Cookie` header:
+```
+Set-Cookie: refresh_token=eyJ...; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
+```
+
+Key properties of this cookie:
+- **HttpOnly** — JavaScript cannot read it (`document.cookie` does not expose it). Protects against XSS attacks stealing the token.
+- **Secure** — only sent over HTTPS. Never transmitted in plaintext.
+- **SameSite=Strict** — only sent on same-site requests. Protects against CSRF attacks.
+- **Max-Age=7d** — the browser automatically discards it after 7 days.
+
+The server never stores the refresh token. On `POST /auth/refresh`, the browser automatically includes the cookie, the server verifies the JWT signature, and issues a new access token. No token table in the database.
 
 ---
 
@@ -29,20 +68,26 @@ Client                          NestJS                         PostgreSQL
   |                               | bcrypt.hash(password, 10)      |
   |                               |                                |
   |                               |-- INSERT INTO "user" --------> |
-  |                               |<-- user record --------------- |
+  |                               |<-- { id, email, created_at } - |
   |                               |                                |
-  |                               | sign access token (15m)        |
-  |                               | sign refresh token (7d)        |
+  |                               | sign access_token (JWT, 15m)   |
+  |                               | sign refresh_token (JWT, 7d)   |
   |                               |                                |
   |<-- 201 Created -------------- |                                |
-  |    Set-Cookie: refresh_token  |                                |
-  |    { access_token, user }     |                                |
+  |    Set-Cookie: refresh_token  | ← stored in browser cookie jar|
+  |    { access_token, user }     | ← client stores in memory/LS  |
 ```
 
+**What is stored where after register:**
+- PostgreSQL: `{ id, email, password_hash, created_at }` — no token stored
+- Browser cookie jar: `refresh_token` (HttpOnly, inaccessible to JS)
+- Client app: `access_token` (in memory or LocalStorage)
+- Server memory: nothing
+
 **Error cases:**
-- `passwords do not match` → **400 Bad Request**
-- `email already registered` → **409 Conflict**
-- invalid/missing fields → **400 Bad Request** (class-validator)
+- Passwords do not match → **400 Bad Request**
+- Email already registered → **409 Conflict**
+- Invalid/missing fields → **400 Bad Request** (class-validator)
 
 ---
 
@@ -56,80 +101,103 @@ Client                          NestJS                         PostgreSQL
   |-- POST /auth/login ---------->|                                |
   |   { email, password }         |                                |
   |                               |-- SELECT WHERE email = ? ----> |
-  |                               |<-- user record --------------- |
+  |                               |<-- { id, email, password_hash }|
   |                               |                                |
-  |                               | bcrypt.compare(password,       |
-  |                               |   user.password_hash)          |
+  |                               | bcrypt.compare(                |
+  |                               |   password, password_hash)     |
   |                               |                                |
-  |                               | sign access token (15m)        |
-  |                               | sign refresh token (7d)        |
+  |                               | sign access_token (JWT, 15m)   |
+  |                               | sign refresh_token (JWT, 7d)   |
   |                               |                                |
   |<-- 200 OK ------------------- |                                |
-  |    Set-Cookie: refresh_token  |                                |
-  |    { access_token, user }     |                                |
+  |    Set-Cookie: refresh_token  | ← replaces previous cookie     |
+  |    { access_token, user }     | ← client updates stored token  |
 ```
 
-**Error cases (both map to the same message to avoid leaking which field failed):**
-- email not found → **401 Unauthorized** `Invalid credentials`
-- wrong password → **401 Unauthorized** `Invalid credentials`
+**Error cases (both return the same message — never reveal which field failed):**
+- Email not found → **401 Unauthorized** `Invalid credentials`
+- Wrong password → **401 Unauthorized** `Invalid credentials`
 
 ---
 
-## 3. Token Refresh
+## 3. Accessing a Protected Route
+
+```
+Client                          NestJS
+  |                               |
+  |-- GET /some-route ----------->|
+  |   Authorization: Bearer <at>  |
+  |                               | JwtAuthGuard extracts token
+  |                               | JwtStrategy.verify(token, JWT_ACCESS_SECRET)
+  |                               | payload = { sub, email, iat, exp }
+  |                               | req.user = { userId, email }
+  |                               |
+  |<-- 200 OK ------------------- |
+```
+
+The server does **not** query the database to validate the access token — the JWT signature is sufficient. The database is only hit if the route handler explicitly fetches data.
+
+---
+
+## 4. Token Refresh
 
 **Endpoint:** `POST /auth/refresh`
 
-Called automatically by the client when the access token expires (HTTP 401 on a protected route).
+Called when the access token expires (client receives 401 on a protected route).
 
 ```
 Client                          NestJS                         PostgreSQL
   |                               |                                |
   |-- POST /auth/refresh -------> |                                |
-  |   Cookie: refresh_token=...   |                                |
-  |                               | read cookie                    |
-  |                               | jwtService.verify(token,       |
-  |                               |   JWT_REFRESH_SECRET)          |
+  |   Cookie: refresh_token=...   | ← browser sends automatically |
+  |   (no body needed)            |                                |
+  |                               | read cookie from request       |
+  |                               | verify(token, JWT_REFRESH_SECRET)
+  |                               | payload = { sub, email }       |
   |                               |                                |
   |                               |-- SELECT WHERE id = sub -----> |
   |                               |<-- user record --------------- |
   |                               |                                |
-  |                               | sign new access token (15m)    |
+  |                               | sign new access_token (15m)    |
   |                               |                                |
   |<-- 200 OK ------------------- |                                |
-  |    { access_token }           |                                |
+  |    { access_token }           | ← client replaces stored token |
 ```
 
+The DB lookup on refresh confirms the user still exists (e.g. account not deleted). No new refresh token is issued — the existing cookie keeps its original 7-day expiry.
+
 **Error cases:**
-- cookie missing → **401 Unauthorized**
-- token expired or tampered → **401 Unauthorized**
-- user no longer exists → **401 Unauthorized**
+- Cookie missing → **401 Unauthorized**
+- Token expired or signature invalid → **401 Unauthorized**
+- User no longer exists in DB → **401 Unauthorized**
 
 ---
 
-## 4. Logout
+## 5. Logout
 
 **Endpoint:** `POST /auth/logout`
-
-Stateless logout — no database write needed. The server clears the HttpOnly cookie by returning it with `maxAge=0`, making it immediately expire in the browser.
 
 ```
 Client                          NestJS
   |                               |
   |-- POST /auth/logout --------> |
-  |   Cookie: refresh_token=...   |
   |                               | res.clearCookie('refresh_token')
+  |                               | sets Max-Age=0 on the cookie
   |                               |
   |<-- 200 OK ------------------- |
-  |    Set-Cookie: refresh_token= |
-  |    (empty, maxAge=0)          |
+  |    Set-Cookie: refresh_token= | ← browser deletes the cookie
+  |    (empty, Max-Age=0)         |
   |    { message: "Logged out" }  |
 ```
 
-The client should also discard the access token from memory/LocalStorage on receipt of this response.
+**Why no server-side action is needed:**
+The server never stored the refresh token, so there is nothing to delete. Logout works purely by telling the browser to expire the cookie. Once the cookie is gone, `POST /auth/refresh` will return 401, effectively ending the session.
+
+The client should also delete the access token from memory/LocalStorage on logout.
 
 ---
 
-## 5. Protecting Routes
+## 6. Protecting Routes
 
 Apply `JwtAuthGuard` to any controller method that requires authentication:
 
@@ -140,11 +208,11 @@ import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard.js';
 @UseGuards(JwtAuthGuard)
 @Get('profile')
 getProfile(@Req() req) {
-    // req.user = { userId, email }  (set by JwtStrategy.validate)
+    // req.user = { userId: string, email: string }
 }
 ```
 
-The guard validates the `Authorization: Bearer <access_token>` header using `JWT_ACCESS_SECRET`. A missing, expired, or invalid token returns **401 Unauthorized** automatically.
+Returns **401 Unauthorized** automatically for missing, expired, or tampered tokens — no extra code needed.
 
 ---
 
@@ -153,15 +221,38 @@ The guard validates the `Authorization: Bearer <access_token>` header using `JWT
 ```
 Register / Login
       │
-      ▼
-access_token (15m) ──► use on every protected request
-refresh_token (7d, HttpOnly cookie)
+      ├──► access_token (15m)
+      │      stored: client memory/LocalStorage
+      │      sent: Authorization: Bearer header
+      │      verified: JWT signature only (no DB)
       │
-      │  access_token expires
-      ▼
-POST /auth/refresh ──► new access_token
+      └──► refresh_token (7d)
+             stored: HttpOnly cookie (browser only, JS cannot read)
+             sent: automatically by browser
+             verified: JWT signature + DB user lookup
+
+access_token expires
       │
-      │  refresh_token expires (or user logs out)
       ▼
-POST /auth/login  ──► start over
+POST /auth/refresh (cookie sent automatically)
+      │
+      └──► new access_token (15m)
+
+refresh_token expires or logout
+      │
+      ▼
+POST /auth/login ──► start over
 ```
+
+---
+
+## Security Properties
+
+| Threat | Mitigation |
+|--------|------------|
+| XSS steals refresh token | HttpOnly cookie — JS cannot access it |
+| CSRF uses refresh token | SameSite=Strict — cross-site requests excluded |
+| XSS steals access token | Short 15m lifetime limits exposure window |
+| Brute-force password | bcrypt cost factor 10 — ~100ms per attempt |
+| Token forgery | Separate secrets for access and refresh tokens |
+| Plaintext password leak | Only `password_hash` stored in DB, never plaintext |

@@ -2,7 +2,14 @@
 
 ## Overview
 
-Implement Register, Login, Logout, and Token Refresh for the NestJS backend against PostgreSQL. Access tokens are short-lived JWTs sent in the response body; refresh tokens are long-lived JWTs stored in an HttpOnly cookie.
+Stateless authentication using a dual-token strategy. The server stores **no session state** — all session data lives on the client. Credentials are stored as:
+
+| Data | Where stored | How |
+|------|-------------|-----|
+| Password | PostgreSQL `user.password_hash` | bcrypt hash (cost 10), never plaintext |
+| Access token | Client (memory / LocalStorage) | JWT signed with `JWT_ACCESS_SECRET`, 15m TTL |
+| Refresh token | Browser HttpOnly cookie | JWT signed with `JWT_REFRESH_SECRET`, 7d TTL |
+| Session state | Nowhere on server | Stateless — verified via JWT signature only |
 
 ---
 
@@ -16,7 +23,7 @@ history  : id (uuid PK), user_id (FK→user), article_id (FK→article), query_t
 
 ---
 
-## Packages
+## Packages Installed
 
 ```bash
 # ORM & DB
@@ -46,34 +53,37 @@ src/
 │   │   ├── register.dto.ts
 │   │   └── login.dto.ts
 │   ├── strategies/
-│   │   └── jwt.strategy.ts
+│   │   └── jwt.strategy.ts         ← extracts + verifies Bearer token
 │   └── guards/
-│       └── jwt-auth.guard.ts
+│       └── jwt-auth.guard.ts       ← apply with @UseGuards(JwtAuthGuard)
 ├── user/
 │   ├── user.module.ts
 │   ├── user.service.ts
 │   └── entities/
 │       └── user.entity.ts
-└── app.module.ts  (updated — wire TypeORM + AuthModule + UserModule)
+└── app.module.ts
 ```
 
 ---
 
-## Environment Variables (.env.development)
+## Environment Variables (repo root `.env`)
 
 ```
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASWORD=postgres
-DB_DATABASE=agentic_research
+DB_HOST=aws-1-ap-southeast-2.pooler.supabase.com
+DB_PORT=6543
+DB_USER=postgres.<project-ref>
+DB_PASWORD=<password>              # note: one 's' — typo kept for consistency
+DB_DATABASE=postgres
 
-JWT_ACCESS_SECRET=<generate with: openssl rand -base64 64>
+JWT_ACCESS_SECRET=<openssl rand -base64 64>
 JWT_ACCESS_EXPIRES_IN=15m
 
-JWT_REFRESH_SECRET=<generate with: openssl rand -base64 64>
+JWT_REFRESH_SECRET=<openssl rand -base64 64>
 JWT_REFRESH_EXPIRES_IN=7d
 ```
+
+Database: Supabase PostgreSQL via Transaction pooler (port `6543`).
+SSL required. `prepareThreshold: 0` disables prepared statements (required for transaction pooler).
 
 ---
 
@@ -92,17 +102,14 @@ JWT_REFRESH_EXPIRES_IN=7d
 
 **Request body:** `{ email, password, confirmPassword }`
 
-1. Validate DTO (class-validator): `IsEmail`, `MinLength(8)`, passwords match
-2. `UserService.findByEmail(email)` — if found → throw `ConflictException` (409)
-3. `bcrypt.hash(password, 10)`
-4. `UserService.create({ email, password_hash })`
-5. Generate access token (JWT 15 min) + refresh token (JWT 7 days), payload: `{ sub: user.id, email }`
-6. Set `refresh_token` cookie: `HttpOnly, Secure, SameSite=Strict, maxAge=7d`
-7. Return **201** `{ access_token, user: { id, email } }`
-
-**Error cases:**
-- Email already exists → **409 Conflict**
-- Validation failure → **400 Bad Request**
+1. Validate DTO — `IsEmail`, `MinLength(8)`, `password === confirmPassword`
+2. `UserService.findByEmail(email)` — if found → **409 Conflict**
+3. `bcrypt.hash(password, 10)` — hash before storing
+4. `UserService.create({ email, password_hash })` — INSERT into DB
+5. Sign access token (JWT, 15m, `JWT_ACCESS_SECRET`)
+6. Sign refresh token (JWT, 7d, `JWT_REFRESH_SECRET`)
+7. `Set-Cookie: refresh_token=...; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`
+8. Return **201** `{ access_token, user: { id, email } }`
 
 ---
 
@@ -110,49 +117,51 @@ JWT_REFRESH_EXPIRES_IN=7d
 
 **Request body:** `{ email, password }`
 
-1. `UserService.findByEmail(email)` — if not found → throw `UnauthorizedException` (401)
-2. `bcrypt.compare(password, user.password_hash)` — if false → throw `UnauthorizedException` (401)
-3. Generate access token + refresh token (same as register)
-4. Set `refresh_token` cookie
+1. `UserService.findByEmail(email)` — if not found → **401** `Invalid credentials`
+2. `bcrypt.compare(password, user.password_hash)` — if false → **401** `Invalid credentials`
+   - Same error message for both cases — prevents leaking which field failed
+3. Sign access token + refresh token (same as register)
+4. Set refresh token cookie
 5. Return **200** `{ access_token, user: { id, email } }`
-
-**Error cases:**
-- Invalid credentials (either wrong email or wrong password) → **401 Unauthorized** (same message — don't leak which field failed)
 
 ---
 
 ## Sequence: Token Refresh (`POST /auth/refresh`)
 
-**Cookie required:** `refresh_token`
+**Requires:** `refresh_token` HttpOnly cookie (sent automatically by browser)
 
-1. Read `refresh_token` from cookie
-2. If missing → throw `UnauthorizedException` (401)
-3. `JwtService.verify(token, { secret: JWT_REFRESH_SECRET })` — if expired/invalid → throw `UnauthorizedException` (401)
-4. `UserService.findById(payload.sub)` — if not found → throw `UnauthorizedException` (401)
-5. Generate new access token
+1. Read `refresh_token` from `req.cookies`
+2. If missing → **401 Unauthorized**
+3. `JwtService.verify(token, { secret: JWT_REFRESH_SECRET })` — if expired/invalid → **401**
+4. `UserService.findById(payload.sub)` — if not found → **401**
+5. Sign new access token (15m)
 6. Return **200** `{ access_token }`
+
+Note: no new refresh token is issued — the cookie retains its original 7d expiry.
 
 ---
 
 ## Sequence: Logout (`POST /auth/logout`)
 
-1. Clear the `refresh_token` cookie by setting `maxAge: 0`
+1. `res.clearCookie('refresh_token')` — sets `Max-Age=0`, browser deletes the cookie
 2. Return **200** `{ message: 'Logged out successfully' }`
 
-No database writes needed — stateless cookie invalidation is sufficient for this use case.
+No DB write. The server never stored the token, so clearing the cookie is sufficient.
+Client must also delete the access token from memory/LocalStorage.
 
 ---
 
-## JWT Strategy
+## JWT Strategy (`src/auth/strategies/jwt.strategy.ts`)
 
-`JwtStrategy` (passport-jwt) extracts Bearer token from Authorization header:
+- Extends `PassportStrategy(Strategy)` from `passport-jwt`
+- Extracts Bearer token from `Authorization` header
 - Verifies against `JWT_ACCESS_SECRET`
 - `validate(payload)` returns `{ userId: payload.sub, email: payload.email }`
-- Used by `JwtAuthGuard` to protect future routes
+- Result is set as `req.user` on authenticated requests
 
 ---
 
-## Bootstrap Changes (main.ts)
+## Bootstrap (`src/main.ts`)
 
 ```ts
 app.use(cookieParser());
@@ -161,13 +170,12 @@ app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
 ---
 
-## Verification
+## Verification Steps
 
-1. `npm run start:dev` — server starts on port 3000
-2. `POST /auth/register` `{ email, password, confirmPassword }` → 201 + access_token + Set-Cookie header
+1. `npm run start:dev` — server starts on port 3000, TypeORM creates `user` table
+2. `POST /auth/register` → 201 + `access_token` in body + `Set-Cookie` header
 3. `POST /auth/register` same email → 409
-4. `POST /auth/login` valid credentials → 200 + access_token + Set-Cookie header
+4. `POST /auth/login` valid credentials → 200 + `access_token` + `Set-Cookie`
 5. `POST /auth/login` wrong password → 401
-6. `POST /auth/refresh` with cookie → 200 new access_token
-7. `POST /auth/logout` → 200, cookie cleared (empty value, maxAge=0)
-8. `npm run test` — all unit tests pass
+6. `POST /auth/refresh` with cookie → 200 new `access_token`
+7. `POST /auth/logout` → 200, `Set-Cookie` with empty value and `Max-Age=0`
