@@ -1,27 +1,27 @@
 'use client';
 
-import { TextInput, PasswordInput, Checkbox, Button, Stack, Group, Anchor, Box, Divider, Text } from '@mantine/core';
+import { TextInput, PasswordInput, Checkbox, Button, Stack, Group, Anchor, Box, Divider, Text, Alert } from '@mantine/core';
+import { IconAlertCircle } from '@tabler/icons-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AuthLayout } from '../AuthLayout';
+import { useAuth } from '@/features/auth/hooks';
+import { AuthLayout } from '@/features/auth/components';
 
 export function RegisterForm() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
   const router = useRouter();
+  const { register, isLoading, error, user } = useAuth();
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      // Redirect to dashboard after successful registration
+  useEffect(() => {
+    if (user) {
       router.push('/');
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [user, router]);
 
   const passwordRequirements = [
     { label: 'At least 8 characters', met: password.length >= 8 },
@@ -30,6 +30,43 @@ export function RegisterForm() {
     { label: 'Contains special character', met: /[!@#$%^&*]/.test(password) },
   ];
 
+  const isPasswordValid = passwordRequirements.every((req) => req.met);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLocalError(null);
+
+    if (!email || !password || !confirmPassword) {
+      setLocalError('All fields are required');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setLocalError('Passwords do not match');
+      return;
+    }
+
+    if (!isPasswordValid) {
+      setLocalError('Password does not meet requirements');
+      return;
+    }
+
+    if (!agreeToTerms) {
+      setLocalError('You must agree to the Terms of Service and Privacy Policy');
+      return;
+    }
+
+    try {
+      await register(email, password, confirmPassword);
+      router.push('/');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Registration failed';
+      setLocalError(errorMessage);
+    }
+  };
+
+  const displayError = localError || error;
+
   return (
     <AuthLayout
       title="Create your account"
@@ -37,12 +74,18 @@ export function RegisterForm() {
     >
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
+          {displayError && (
+            <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red">
+              {displayError}
+            </Alert>
+          )}
+
           {/* Social login buttons */}
           <Group grow>
-            <Button variant="outline" size="md" fullWidth>
+            <Button variant="outline" size="md" fullWidth disabled={isLoading}>
               Google
             </Button>
-            <Button variant="outline" size="md" fullWidth>
+            <Button variant="outline" size="md" fullWidth disabled={isLoading}>
               GitHub
             </Button>
           </Group>
@@ -50,20 +93,16 @@ export function RegisterForm() {
           {/* Divider */}
           <Divider label="or register with email" labelPosition="center" />
 
-          {/* Full Name field */}
-          <TextInput
-            label="Full name"
-            placeholder="John Doe"
-            required
-            size="md"
-          />
-
           {/* Email field */}
           <TextInput
             label="Email address"
             placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.currentTarget.value)}
             required
             size="md"
+            disabled={isLoading}
+            type="email"
           />
 
           {/* Password field */}
@@ -77,6 +116,7 @@ export function RegisterForm() {
               size="md"
               value={password}
               onChange={(e) => setPassword(e.currentTarget.value)}
+              disabled={isLoading}
             />
 
             {/* Password requirements */}
@@ -91,7 +131,7 @@ export function RegisterForm() {
               >
                 {passwordRequirements.map((req, index) => (
                   <Group key={index} gap="xs" style={{ alignItems: 'center' }}>
-                    <Text size="xs" style={{ flex: 1 }}>
+                    <Text size="xs" style={{ flex: 1, color: req.met ? 'green' : 'gray' }}>
                       {req.met ? '✓' : '✗'} {req.label}
                     </Text>
                   </Group>
@@ -100,9 +140,27 @@ export function RegisterForm() {
             )}
           </Stack>
 
+          {/* Confirm Password field */}
+          <PasswordInput
+            label="Confirm password"
+            placeholder="Confirm your password"
+            required
+            size="md"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.currentTarget.value)}
+            disabled={isLoading}
+            error={password && confirmPassword && password !== confirmPassword ? 'Passwords do not match' : undefined}
+          />
+
           {/* Terms */}
           <Group gap="xs" align="flex-start">
-            <Checkbox required style={{ marginTop: '0.25rem' }} />
+            <Checkbox
+              checked={agreeToTerms}
+              onChange={(e) => setAgreeToTerms(e.currentTarget.checked)}
+              required
+              style={{ marginTop: '0.25rem' }}
+              disabled={isLoading}
+            />
             <Text size="xs" style={{ flex: 1 }}>
               I agree to the{' '}
               <Link href="/terms" style={{ textDecoration: 'none' }}>
@@ -125,6 +183,7 @@ export function RegisterForm() {
             fullWidth
             size="md"
             loading={isLoading}
+            disabled={!isPasswordValid || !agreeToTerms || isLoading}
             style={{ marginTop: '0.5rem' }}
           >
             Create account →

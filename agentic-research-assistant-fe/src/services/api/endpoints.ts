@@ -14,9 +14,10 @@ export const ENDPOINTS = {
   RESEARCH_BY_ID: (id: string) => `/api/research/${id}`,
 
   // Auth
-  LOGIN: '/api/auth/login',
-  REGISTER: '/api/auth/register',
-  LOGOUT: '/api/auth/logout',
+  LOGIN: '/auth/login',
+  REGISTER: '/auth/register',
+  LOGOUT: '/auth/logout',
+  REFRESH: '/auth/refresh',
   PROFILE: '/api/auth/profile',
 };
 
