@@ -1,6 +1,6 @@
 Authentication API — cURL Reference
 ====================================
-Base URL: http://localhost:3000
+Base URL: http://localhost:8080
 All requests with a body use Content-Type: application/json.
 Refresh token is sent automatically as a cookie (-b / -c flags).
 
@@ -11,7 +11,7 @@ Refresh token is sent automatically as a cookie (-b / -c flags).
 ────────────────────────────────────────
 
 # Success (201 Created)
-curl -s -X POST http://localhost:3000/auth/register \
+curl -s -X POST http://localhost:8080/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"secret123","confirmPassword":"secret123"}' \
   -c cookies.txt | jq
@@ -25,19 +25,19 @@ curl -s -X POST http://localhost:3000/auth/register \
 
 
 # Error — email already registered (409 Conflict)
-curl -s -X POST http://localhost:3000/auth/register \
+curl -s -X POST http://localhost:8080/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"secret123","confirmPassword":"secret123"}' | jq
 
 
 # Error — passwords do not match (400 Bad Request)
-curl -s -X POST http://localhost:3000/auth/register \
+curl -s -X POST http://localhost:8080/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"secret123","confirmPassword":"wrong"}' | jq
 
 
 # Error — invalid email (400 Bad Request)
-curl -s -X POST http://localhost:3000/auth/register \
+curl -s -X POST http://localhost:8080/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"not-an-email","password":"secret123","confirmPassword":"secret123"}' | jq
 
@@ -48,7 +48,7 @@ curl -s -X POST http://localhost:3000/auth/register \
 ────────────────────────────────────────
 
 # Success (200 OK) — saves refresh token cookie to cookies.txt
-curl -s -X POST http://localhost:3000/auth/login \
+curl -s -X POST http://localhost:8080/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"secret123"}' \
   -c cookies.txt | jq
@@ -62,13 +62,13 @@ curl -s -X POST http://localhost:3000/auth/login \
 
 
 # Error — wrong password (401 Unauthorized)
-curl -s -X POST http://localhost:3000/auth/login \
+curl -s -X POST http://localhost:8080/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"wrongpassword"}' | jq
 
 
 # Error — email not found (401 Unauthorized)
-curl -s -X POST http://localhost:3000/auth/login \
+curl -s -X POST http://localhost:8080/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"nobody@example.com","password":"secret123"}' | jq
 
@@ -80,7 +80,7 @@ curl -s -X POST http://localhost:3000/auth/login \
 ────────────────────────────────────────
 
 # Success (200 OK) — reads cookie from cookies.txt
-curl -s -X POST http://localhost:3000/auth/refresh \
+curl -s -X POST http://localhost:8080/auth/refresh \
   -b cookies.txt | jq
 
 # Expected response:
@@ -90,7 +90,7 @@ curl -s -X POST http://localhost:3000/auth/refresh \
 
 
 # Error — no cookie present (401 Unauthorized)
-curl -s -X POST http://localhost:3000/auth/refresh | jq
+curl -s -X POST http://localhost:8080/auth/refresh | jq
 
 
 ────────────────────────────────────────
@@ -99,7 +99,7 @@ curl -s -X POST http://localhost:3000/auth/refresh | jq
 ────────────────────────────────────────
 
 # Success (200 OK) — clears the refresh_token cookie
-curl -s -X POST http://localhost:3000/auth/logout \
+curl -s -X POST http://localhost:8080/auth/logout \
   -b cookies.txt -c cookies.txt | jq
 
 # Expected response:
@@ -115,17 +115,17 @@ curl -s -X POST http://localhost:3000/auth/logout \
 ────────────────────────────────────────
 
 # Store the access token from login/register first:
-ACCESS_TOKEN=$(curl -s -X POST http://localhost:3000/auth/login \
+ACCESS_TOKEN=$(curl -s -X POST http://localhost:8080/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"secret123"}' \
   -c cookies.txt | jq -r '.access_token')
 
 # Use it on a protected endpoint:
-curl -s http://localhost:3000/some-protected-route \
+curl -s http://localhost:8080/some-protected-route \
   -H "Authorization: Bearer $ACCESS_TOKEN" | jq
 
 # Error — missing or expired token (401 Unauthorized)
-curl -s http://localhost:3000/some-protected-route | jq
+curl -s http://localhost:8080/some-protected-route | jq
 
 
 ────────────────────────────────────────

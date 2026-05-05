@@ -41,6 +41,7 @@ export class AuthService {
 
         return res.status(201).json({
             access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
             user: { id: user.id, email: user.email },
         });
     }
@@ -61,6 +62,7 @@ export class AuthService {
 
         return res.status(200).json({
             access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
             user: { id: user.id, email: user.email },
         });
     }
@@ -85,14 +87,13 @@ export class AuthService {
             throw new UnauthorizedException('User not found');
         }
 
-        const access_token = this.jwtService.sign(
-            { sub: user.id, email: user.email },
-            { secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              expiresIn: this.configService.getOrThrow<string>('JWT_ACCESS_EXPIRES_IN') as any },
-        );
+        const tokens = this.generateTokens(user.id, user.email);
+        this.setRefreshCookie(res, tokens.refresh_token);
 
-        return res.status(200).json({ access_token });
+        return res.status(200).json({
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+        });
     }
 
     logout(res: Response) {
