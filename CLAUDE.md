@@ -23,7 +23,7 @@ npm run test:e2e       # end-to-end tests
 npm run test:cov       # coverage report
 ```
 
-- Runs on port `3000` by default (overridable via `PORT` env var)
+- Runs on port `8080` by default (overridable via `PORT` env var)
 - Environment loaded from `../.env.development` (repo root) via `@nestjs/config` (global) — single `.env.development` shared with frontend
 - Uses SWC for fast compilation (`-b swc` flag)
 - Path alias `@/*` maps to `src/*`

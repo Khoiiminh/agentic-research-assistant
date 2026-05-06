@@ -1,27 +1,24 @@
-/**
- * Auth Feature Types
- */
-
 export interface User {
   id: string;
   email: string;
-  name: string;
-  role: 'user' | 'admin';
-  createdAt: Date;
 }
 
-export interface LoginPayload {
-  email: string;
-  password: string;
+export interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
 }
 
-export interface LoginResponse {
-  token: string;
+export interface AuthResponse extends AuthTokens {
   user: User;
 }
 
-export interface RegisterPayload {
-  email: string;
-  password: string;
-  name: string;
+export interface AuthContextType {
+  user: User | null;
+  accessToken: string | null;
+  isLoading: boolean;
+  error: string | null;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, confirmPassword: string) => Promise<void>;
+  logout: () => Promise<void>;
+  clearError: () => void;
 }

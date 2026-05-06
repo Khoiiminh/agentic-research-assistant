@@ -17,19 +17,23 @@ export const colors = {
   gray800: '#1F2937',
   gray900: '#111827',
 
-  // Primary
-  primary50: '#EFF6FF',
-  primary100: '#DBEAFE',
-  primary500: '#3B82F6',
-  primary600: '#2563EB',
-  primary700: '#1D4ED8',
-  primary900: '#1E3A8A',
+  // Primary - Dark purple palette
+  primary50: '#F0F0FF',
+  primary100: '#E0E0FF',
+  primary200: '#C0C0FF',
+  primary300: '#9696FF',
+  primary400: '#6366F1',
+  primary500: '#6366F1',
+  primary600: '#4B4DB5',
+  primary700: '#323379',
+  primary800: '#1A1A4D',
+  primary900: '#000000',
 
   // Status
   success: '#10B981',
   warning: '#F59E0B',
   error: '#EF4444',
-  info: '#3B82F6',
+  info: '#6366F1',
 };
 
 export type ColorKey = keyof typeof colors;

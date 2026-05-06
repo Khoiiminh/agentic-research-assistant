@@ -153,7 +153,7 @@ app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
 ## Verification Steps
 
-1. `npm run start:dev` — server starts on port 3000, TypeORM creates `user` table
+1. `npm run start:dev` — server starts on port 8080, TypeORM creates `user` table
 2. `POST /auth/register` → 201, body has `access_token`, `refresh_token`, `user` + `Set-Cookie` header
 3. `POST /auth/register` same email → 409
 4. `POST /auth/login` valid credentials → 200, body has `access_token`, `refresh_token`, `user` + `Set-Cookie`

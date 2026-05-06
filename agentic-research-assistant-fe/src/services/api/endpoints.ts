@@ -2,7 +2,7 @@
  * API Endpoints - Centralized endpoint constants
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export const ENDPOINTS = {
   // Search
@@ -14,9 +14,10 @@ export const ENDPOINTS = {
   RESEARCH_BY_ID: (id: string) => `/api/research/${id}`,
 
   // Auth
-  LOGIN: '/api/auth/login',
-  REGISTER: '/api/auth/register',
-  LOGOUT: '/api/auth/logout',
+  LOGIN: '/auth/login',
+  REGISTER: '/auth/register',
+  LOGOUT: '/auth/logout',
+  REFRESH: '/auth/refresh',
   PROFILE: '/api/auth/profile',
 };
 

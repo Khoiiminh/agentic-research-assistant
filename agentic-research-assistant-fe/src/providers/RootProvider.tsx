@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { AuthProvider } from '@/features/auth/context/AuthContext';
 
 /**
  * RootProvider combines all app-level providers
@@ -11,6 +12,8 @@ import React from 'react';
  */
 export function RootProvider({ children }: { children: React.ReactNode }) {
   return (
-    <>{/* Add providers here */}{children}</>
+    <AuthProvider>
+      {children}
+    </AuthProvider>
   );
 }
