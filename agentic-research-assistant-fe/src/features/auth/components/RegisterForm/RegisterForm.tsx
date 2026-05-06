@@ -1,6 +1,6 @@
 'use client';
 
-import { TextInput, PasswordInput, Checkbox, Button, Stack, Group, Anchor, Box, Divider, Text, Alert } from '@mantine/core';
+import { TextInput, PasswordInput, Checkbox, Button, Stack, Group, Anchor, Divider, Text, Alert } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -19,18 +19,10 @@ export function RegisterForm() {
 
   useEffect(() => {
     if (user) {
-      router.push('/');
+      router.push('/dashboard');
     }
   }, [user, router]);
 
-  const passwordRequirements = [
-    { label: 'At least 8 characters', met: password.length >= 8 },
-    { label: 'Contains uppercase letter', met: /[A-Z]/.test(password) },
-    { label: 'Contains number', met: /[0-9]/.test(password) },
-    { label: 'Contains special character', met: /[!@#$%^&*]/.test(password) },
-  ];
-
-  const isPasswordValid = passwordRequirements.every((req) => req.met);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -46,11 +38,6 @@ export function RegisterForm() {
       return;
     }
 
-    if (!isPasswordValid) {
-      setLocalError('Password does not meet requirements');
-      return;
-    }
-
     if (!agreeToTerms) {
       setLocalError('You must agree to the Terms of Service and Privacy Policy');
       return;
@@ -58,7 +45,7 @@ export function RegisterForm() {
 
     try {
       await register(email, password, confirmPassword);
-      router.push('/');
+      router.push('/dashboard');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Registration failed';
       setLocalError(errorMessage);
@@ -119,25 +106,6 @@ export function RegisterForm() {
               disabled={isLoading}
             />
 
-            {/* Password requirements */}
-            {password && (
-              <Box
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '0.5rem',
-                  marginTop: '0.5rem',
-                }}
-              >
-                {passwordRequirements.map((req, index) => (
-                  <Group key={index} gap="xs" style={{ alignItems: 'center' }}>
-                    <Text size="xs" style={{ flex: 1, color: req.met ? 'green' : 'gray' }}>
-                      {req.met ? '✓' : '✗'} {req.label}
-                    </Text>
-                  </Group>
-                ))}
-              </Box>
-            )}
           </Stack>
 
           {/* Confirm Password field */}
@@ -183,7 +151,7 @@ export function RegisterForm() {
             fullWidth
             size="md"
             loading={isLoading}
-            disabled={!isPasswordValid || !agreeToTerms || isLoading}
+            disabled={!agreeToTerms || isLoading}
             style={{ marginTop: '0.5rem' }}
           >
             Create account →
