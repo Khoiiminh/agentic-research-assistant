@@ -21,6 +21,11 @@ services:
       - MODEL_NAME=BAAI/bge-m3
       - DEVICE=cpu
       - MAX_BATCH_SIZE=32
+      # MODIFIED: Cache HF model artifacts outside the image
+      - HF_HOME=/models
+      - TRANSFORMERS_CACHE=/models
+    volumes:
+      - hf_models:/models
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8089/health').read()\""]
       interval: 5s
@@ -29,3 +34,4 @@ services:
 
 volumes:
   qdrant_storage:
+  hf_models:

@@ -17,7 +17,9 @@ export class VectorsService implements OnModuleInit {
 
     constructor(private readonly config: ConfigService) {
         const url = this.config.getOrThrow<string>('QDRANT_URL');
-        this.client = new QdrantClient({ url });
+        // MODIFIED: Support Qdrant Cloud auth via API key (optional for local Qdrant)
+        const apiKey = this.config.get<string>('QDRANT_API_KEY');
+        this.client = new QdrantClient({ url, apiKey: apiKey || undefined } as any);
         this.collectionName = this.config.getOrThrow<string>('QDRANT_COLLECTION');
         this.vectorSize = Number(this.config.getOrThrow<string>('QDRANT_VECTOR_SIZE'));
         this.distance = (this.config.getOrThrow<string>('QDRANT_DISTANCE') as Distance) ?? 'Cosine';

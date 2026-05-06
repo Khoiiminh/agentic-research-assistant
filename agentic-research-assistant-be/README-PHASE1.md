@@ -12,6 +12,22 @@ From repo root:
 docker compose up -d qdrant py-embed
 ```
 
+## Dev/Test vs Demo/Prod (Qdrant)
+
+// --- START MODIFICATION ---
+For **Dev/Test**, the recommended setup is **local Qdrant** (Docker) so ingest + schema changes are fast and deterministic:
+
+- `QDRANT_URL=http://localhost:6333`
+- no `QDRANT_API_KEY`
+
+For **Demo/Prod**, point to **Qdrant Cloud**:
+
+- `QDRANT_URL=https://<cluster>.cloud.qdrant.io`
+- `QDRANT_API_KEY=<required>`
+
+Important: if you change the embedding model/provider, rotate to a new `QDRANT_COLLECTION` and re-ingest (embedding space mismatch).
+// --- END MODIFICATION ---
+
 ## Start backend
 
 ```bash
