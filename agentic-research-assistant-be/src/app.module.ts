@@ -5,11 +5,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '@/auth/auth.module.js';
 import { UserModule } from '@/user/user.module.js';
+import { VectorsModule } from '@/vectors/vectors.module.js';
+import { EmbeddingModule } from '@/embedding/embedding.module.js';
 
 @Module({
     imports: [
         ConfigModule.forRoot({
-            envFilePath: '.env.development',
+            // MODIFIED: Use repo-root env file shared with frontend
+            envFilePath: '../.env.development',
             isGlobal: true,
         }),
         TypeOrmModule.forRootAsync({
@@ -29,6 +32,8 @@ import { UserModule } from '@/user/user.module.js';
         }),
         AuthModule,
         UserModule,
+        VectorsModule,
+        EmbeddingModule,
     ],
     controllers: [AppController],
     providers: [AppService],
