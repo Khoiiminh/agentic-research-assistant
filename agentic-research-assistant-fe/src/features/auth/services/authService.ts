@@ -31,16 +31,12 @@ export const authService = {
     return httpClient.post(ENDPOINTS.REFRESH);
   },
 
-  saveTokens(accessToken: string, refreshToken?: string): void {
+  saveTokens(accessToken: string, _refreshToken?: string): void {
     localStorage.setItem('accessToken', accessToken);
-    if (refreshToken) {
-      localStorage.setItem('refreshToken', refreshToken);
-    }
   },
 
   clearTokens(): void {
     localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
   },
 
