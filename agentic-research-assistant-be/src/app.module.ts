@@ -9,7 +9,7 @@ import { UserModule } from '@/user/user.module.js';
 @Module({
     imports: [
         ConfigModule.forRoot({
-            envFilePath: '../.env.development',
+            envFilePath: '.env.development',
             isGlobal: true,
         }),
         TypeOrmModule.forRootAsync({
