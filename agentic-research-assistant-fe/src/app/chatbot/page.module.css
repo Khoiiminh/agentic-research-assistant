@@ -1,0 +1,23 @@
+.container {
+  display: flex;
+  height: 100vh;
+  background-color: var(--background);
+}
+
+.mainContent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.contentArea {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.chatArea {
+  flex: 1;
+  overflow: hidden;
+}

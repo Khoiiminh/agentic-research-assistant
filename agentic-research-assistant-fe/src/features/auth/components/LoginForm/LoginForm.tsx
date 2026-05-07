@@ -17,7 +17,7 @@ export function LoginForm() {
 
   useEffect(() => {
     if (user) {
-      router.push('/dashboard');
+      router.push('/chatbot');
     }
   }, [user, router]);
 
@@ -32,7 +32,7 @@ export function LoginForm() {
 
     try {
       await login(email, password);
-      router.push('/dashboard');
+      router.push('/chatbot');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
       setLocalError(errorMessage);

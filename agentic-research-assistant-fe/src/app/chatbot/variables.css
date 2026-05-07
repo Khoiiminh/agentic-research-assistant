@@ -1,0 +1,76 @@
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap");
+
+:root {
+  /* Color Palette */
+  --color-black: #000000;
+  --color-dark-purple: #323379;
+  --color-medium-purple: #4B4DB5;
+  --color-indigo: #6366F1;
+
+  /* Semantic Colors */
+  --background: #ffffff;
+  --foreground: #000000;
+  --primary: #6366F1;
+  --primary-light: #818CF8;
+  --primary-dark: #4F46E5;
+  --secondary: #f3f4f6;
+  --secondary-dark: #e5e7eb;
+  --sidebar: #f9fafb;
+  --border: #e5e7eb;
+  --input: #f3f4f6;
+
+  --muted: #6b7280;
+  --muted-foreground: #9ca3af;
+
+  --destructive: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+
+  /* Typography */
+  --font-sans: "Geist", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", monospace;
+
+  /* Spacing */
+  --radius: 0.5rem;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--foreground);
+  background-color: var(--background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+input,
+button,
+textarea,
+select {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
