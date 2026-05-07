@@ -1,98 +1,95 @@
+<!--
+  // --- START MODIFICATION ---
+  Polished README styling + quickstart runbook.
+  // --- END MODIFICATION ---
+-->
+
 <p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+  <a href="https://nestjs.com/" target="_blank">
+    <img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" />
+  </a>
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+<h2 align="center">Agentic Research Assistant — Backend</h2>
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
+<p align="center">
+  <a href="https://nodejs.org/" target="_blank"><img alt="Node.js" src="https://img.shields.io/badge/node-20%2B-339933?logo=node.js&logoColor=white"></a>
+  <a href="https://www.npmjs.com/package/@nestjs/core" target="_blank"><img alt="NestJS" src="https://img.shields.io/badge/nestjs-11-E0234E?logo=nestjs&logoColor=white"></a>
+  <a href="https://www.qdrant.tech/" target="_blank"><img alt="Qdrant" src="https://img.shields.io/badge/qdrant-vector%20db-5B3DF5"></a>
 </p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
-## Description
+## Quickstart (dev)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+### Prereqs
+- Docker Desktop (for Qdrant + embedding sidecar)
+- Node.js 20+
 
-## Project setup
+### Environment
 
-```bash
-$ npm install
-```
+Backend loads configuration from the repo-root file **`../.env.development`** via `@nestjs/config`.
 
-## Compile and run the project
+Minimum required keys:
+- **Postgres**: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASWORD`, `DB_DATABASE`
+- **JWT**: `JWT_ACCESS_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_SECRET`, `JWT_REFRESH_EXPIRES_IN`
+- **Qdrant**: `QDRANT_URL`, `QDRANT_COLLECTION`, `QDRANT_VECTOR_SIZE`, `QDRANT_DISTANCE`
+- **Embeddings**: `EMBEDDING_PROVIDER`, `EMBED_LOCAL_URL`, `EMBED_REMOTE_URL`, `EMBED_REMOTE_API_KEY`, `EMBEDDING_MODEL`
 
-```bash
-# development
-$ npm run start
+### 1) Start dependencies (Qdrant + embedding sidecar)
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
+From repo root:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker compose up -d qdrant py-embed
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 2) Run backend
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+cd agentic-research-assistant-be
+npm install
+npm run start:dev
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Backend URL (default): `http://localhost:3001` (via `PORT` in repo root `.env.development`).
 
-## Resources
+## Phase 1 (vectors + embeddings)
 
-Check out a few resources that may come in handy when working with NestJS:
+See `README-PHASE1.md` for:
+- API smoke tests (`/api/embeddings`, `/api/vectors/upsert`, `/api/vectors/search`)
+- RSS ingestion (`npm run ingest:rss`)
+- Qdrant tuning notes (HNSW, quantization, payload indexes)
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## Dev/Test vs Demo/Prod (team convention)
 
-## Support
+// --- START MODIFICATION ---
+This repo supports two operational modes. Pick one per environment and keep it consistent:
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### Dev/Test (fast iteration, zero external dependencies)
+- **Vector DB**: run **local Qdrant** via Docker Compose.
+  - `QDRANT_URL=http://localhost:6333`
+  - no API key required
+- **Embeddings**: run **local embedding sidecar** via Docker Compose.
+  - `EMBEDDING_PROVIDER=local`
+  - `EMBED_LOCAL_URL=http://localhost:8089`
+- **Why**: deterministic, cheap, no network flakiness; safe to experiment with ingest/chunking.
 
-## Stay in touch
+### Demo/Prod (shareable, always-on)
+- **Vector DB**: use **Qdrant Cloud**.
+  - `QDRANT_URL=https://<cluster>.cloud.qdrant.io`
+  - `QDRANT_API_KEY=<required>`
+- **Embeddings**:
+  - keep `EMBEDDING_PROVIDER=local` (embed on your infra) **or**
+  - switch to remote: `EMBEDDING_PROVIDER=remote` + `EMBED_REMOTE_URL` (OpenAI-compatible `/v1/embeddings`)
+- **Why**: stable endpoint for demo, multi-user, production-like reliability.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Operational rule: **do not mix embedding models** between environments for the same collection.
+If you switch embedding provider/model, rotate to a new `QDRANT_COLLECTION` and re-ingest.
+// --- END MODIFICATION ---
 
-## License
+## Scripts
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+```bash
+npm run build
+npm run lint
+npm run test
+```

@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<!--
+  // --- START MODIFICATION ---
+  Polished README styling + quickstart runbook.
+  // --- END MODIFICATION ---
+-->
 
-## Getting Started
+<p align="center">
+  <a href="https://nextjs.org/" target="_blank">
+    <img src="https://assets.vercel.com/image/upload/v1662130559/nextjs/Icon_dark_background.png" width="84" alt="Next.js Logo" />
+  </a>
+</p>
 
-First, run the development server:
+<h2 align="center">Agentic Research Assistant — Frontend</h2>
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+<p align="center">
+  <img alt="Next.js" src="https://img.shields.io/badge/next-16-black?logo=next.js&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=black">
+  <img alt="Mantine" src="https://img.shields.io/badge/mantine-ui-339AF0">
+</p>
+
+## Quickstart (dev)
+
+### Prereqs
+- Node.js 20+
+- Backend running (see `agentic-research-assistant-be/README.md`)
+
+### Environment
+
+Create a local env file `agentic-research-assistant-fe/.env.local`:
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Run frontend
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cd agentic-research-assistant-fe
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Frontend URL (default): `http://localhost:3000`.
 
-## Learn More
+## Docker Compose note
 
-To learn more about Next.js, take a look at the following resources:
+Docker Compose in this repo is used for **backend dependencies** (Qdrant + embedding sidecar), not the Next.js frontend:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+docker compose up -d qdrant py-embed
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Dev/Test vs Demo/Prod (backend URL)
 
-## Deploy on Vercel
+// --- START MODIFICATION ---
+- **Dev/Test**: point `NEXT_PUBLIC_API_URL` to your local NestJS backend (default `http://localhost:3001`).
+- **Demo/Prod**: point `NEXT_PUBLIC_API_URL` to your deployed backend URL.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Tip: keep `NEXT_PUBLIC_API_URL` and backend `PORT` aligned to avoid silent CORS/connection failures.
+// --- END MODIFICATION ---
