@@ -19,7 +19,7 @@ export function RegisterForm() {
 
   useEffect(() => {
     if (user) {
-      router.push('/dashboard');
+      router.push('/chatbot');
     }
   }, [user, router]);
 
@@ -45,7 +45,7 @@ export function RegisterForm() {
 
     try {
       await register(email, password, confirmPassword);
-      router.push('/dashboard');
+      router.push('/chatbot');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Registration failed';
       setLocalError(errorMessage);

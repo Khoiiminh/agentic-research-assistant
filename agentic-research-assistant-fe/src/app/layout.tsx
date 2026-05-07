@@ -52,7 +52,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} data-mantine-color-scheme="dark">
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} data-mantine-color-scheme="dark" suppressHydrationWarning>
       <head>
         <ColorSchemeScript defaultColorScheme="dark" />
       </head>
