@@ -3,13 +3,14 @@
 import { Container, Title, Text, Button, Group } from '@mantine/core';
 import { IconLogout } from '@tabler/icons-react';
 import { useAuth } from '@/features/auth/hooks';
+import { API_BASE_URL, ENDPOINTS } from '@/services/api/endpoints';
 
 export default function DashboardPage() {
   const { user } = useAuth();
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:8080/auth/logout', {
+      await fetch(`${API_BASE_URL}${ENDPOINTS.LOGOUT}`, {
         method: 'POST',
         credentials: 'include',
       });

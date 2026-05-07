@@ -1,8 +1,11 @@
 import { Body, Controller, Post } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { EmbeddingService } from './embedding.service.js';
 import { EmbedDto } from './dto/embed.dto.js';
 
-@Controller('/api/embeddings')
+// MODIFIED: Path without /api — global prefix adds /api
+@ApiTags('Embedding')
+@Controller('embeddings')
 export class EmbeddingController {
     constructor(private readonly embedding: EmbeddingService) {}
 

@@ -1,9 +1,12 @@
 import { Body, Controller, Post } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { VectorsService } from './vectors.service.js';
 import { UpsertVectorsDto } from './dto/upsert.dto.js';
 import { SearchVectorsDto } from './dto/search.dto.js';
 
-@Controller('/api/vectors')
+// MODIFIED: Path without /api — global prefix adds /api
+@ApiTags('Vectors')
+@Controller('vectors')
 export class VectorsController {
     constructor(private readonly vectors: VectorsService) {}
 

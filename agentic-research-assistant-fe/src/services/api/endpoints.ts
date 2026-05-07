@@ -13,11 +13,11 @@ export const ENDPOINTS = {
   RESEARCH: '/api/research',
   RESEARCH_BY_ID: (id: string) => `/api/research/${id}`,
 
-  // Auth
-  LOGIN: '/auth/login',
-  REGISTER: '/auth/register',
-  LOGOUT: '/auth/logout',
-  REFRESH: '/auth/refresh',
+  // Auth (global BE prefix /api)
+  LOGIN: '/api/auth/login',
+  REGISTER: '/api/auth/register',
+  LOGOUT: '/api/auth/logout',
+  REFRESH: '/api/auth/refresh',
   PROFILE: '/api/auth/profile',
 };
 
