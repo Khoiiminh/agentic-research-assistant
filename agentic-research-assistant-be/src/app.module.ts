@@ -3,10 +3,12 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from '@/auth/auth.module.js';
 import { UserModule } from '@/user/user.module.js';
 import { VectorsModule } from '@/vectors/vectors.module.js';
 import { EmbeddingModule } from '@/embedding/embedding.module.js';
+import { ResearchModule } from '@/research/research.module.js';
 
 @Module({
     imports: [
@@ -14,6 +16,19 @@ import { EmbeddingModule } from '@/embedding/embedding.module.js';
             // MODIFIED: Use repo-root env file shared with frontend
             envFilePath: '../.env.development',
             isGlobal: true,
+        }),
+        // MODIFIED: Rate-limit only routes that opt-in via @Throttle + ThrottlerGuard
+        ThrottlerModule.forRootAsync({
+            inject: [ConfigService],
+            useFactory: (config: ConfigService) => ({
+                throttlers: [
+                    {
+                        name: 'research',
+                        ttl: Number(config.get<string>('RESEARCH_RATE_TTL_SECONDS') ?? '60'),
+                        limit: Number(config.get<string>('RESEARCH_RATE_LIMIT') ?? '5'),
+                    },
+                ],
+            }),
         }),
         TypeOrmModule.forRootAsync({
             inject: [ConfigService],
@@ -34,6 +49,7 @@ import { EmbeddingModule } from '@/embedding/embedding.module.js';
         UserModule,
         VectorsModule,
         EmbeddingModule,
+        ResearchModule,
     ],
     controllers: [AppController],
     providers: [AppService],

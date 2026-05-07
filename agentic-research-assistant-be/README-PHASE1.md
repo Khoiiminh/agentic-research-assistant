@@ -117,3 +117,41 @@ EMBED_REMOTE_URL=<openai-compatible /v1/embeddings endpoint>
 EMBED_REMOTE_API_KEY=<optional>
 ```
 
+## Phase 2 — RAG API (`/api/research`)
+
+### Configure LLM (OpenAI-compatible)
+
+Set in repo root `.env.development`:
+
+```
+LLM_API_BASE_URL=http://localhost:8000
+LLM_MODEL=<model-name>
+LLM_API_KEY=
+LLM_MAX_TOKENS=512
+LLM_CONTEXT_WINDOW_TOKENS=8192
+```
+
+### Rate limit (public endpoint)
+
+```
+RESEARCH_RATE_TTL_SECONDS=60
+RESEARCH_RATE_LIMIT=5
+```
+
+### Request / Response
+
+```bash
+curl -X POST http://localhost:3001/api/research ^
+  -H "Content-Type: application/json" ^
+  -d "{\"query\":\"What happened in AI this week?\",\"topK\":5,\"applyCredibilityBoost\":true}"
+```
+
+Response fields:
+- `answer`: LLM answer with citations in format `[chunkId]` (strictly validated)
+- `sources[]`: stable mapping by `chunkId` (frontend renders URL/title from backend)
+- `isExtractiveFallback=true`: when LLM is unavailable (snippets shown instead)
+
+Context window policy:
+- no truncation inside chunks
+- drop whole low-score chunks until within token budget (heuristic: \(tokens \\approx chars/4\))
+
