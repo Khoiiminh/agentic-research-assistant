@@ -1,0 +1,76 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// Prisma Schema DRAFT — Phase 3 Architecture Preview
+// ──────────────────────────────────────────────────────────────────────────────
+// This file is a DESIGN DRAFT. It will be activated in a future phase
+// when we wire up Prisma to replace the current TypeORM setup.
+//
+// To preview:
+//   npx prisma format --schema=prisma/schema.prisma
+//
+// NOT yet connected to any database. Do NOT run `prisma migrate` yet.
+// ──────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Chat Sessions ──────────────────────────────────────────────────────────
+
+/// A chat session groups messages into a conversation thread.
+/// Each session tracks the user (if authenticated) and session metadata.
+model ChatSession {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  title     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  messages Message[]
+
+  @@index([userId])
+  @@map("chat_sessions")
+}
+
+// ─── Messages ───────────────────────────────────────────────────────────────
+
+/// A single message in a chat session.
+/// Supports human, ai, system, and tool message roles.
+/// Stores optional LangGraph metadata for state tracking.
+model Message {
+  id        String   @id @default(cuid())
+  sessionId String   @map("session_id")
+  role      String   // 'human' | 'ai' | 'system' | 'tool'
+  content   String   @db.Text
+  metadata  Json?    // LangGraph step metadata, tool calls, latency, etc.
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("messages")
+}
+
+// ─── Documents ──────────────────────────────────────────────────────────────
+
+/// Metadata for ingested documents/articles.
+/// Tracks the source, ingestion status, and chunk count.
+/// Actual vector embeddings live in Qdrant; this table stores metadata only.
+model Document {
+  id               String   @id @default(cuid())
+  sourceUrl        String   @map("source_url")
+  title            String?
+  category         String?
+  publishedAt      DateTime? @map("published_at")
+  chunkCount       Int      @default(0) @map("chunk_count")
+  ingestedAt       DateTime @default(now()) @map("ingested_at")
+  credibilityScore Float?   @map("credibility_score")
+
+  @@unique([sourceUrl])
+  @@index([category])
+  @@map("documents")
+}

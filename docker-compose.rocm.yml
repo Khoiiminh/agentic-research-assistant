@@ -1,0 +1,133 @@
+# docker-compose.rocm.yml
+# AMD ROCm deployment stack for the Agentic Research Assistant.
+# Runs vLLM on AMD GPU + all supporting services.
+#
+# Usage:
+#   docker compose -f docker-compose.rocm.yml up -d
+#   rocm-smi  # monitor GPU utilization
+#
+# Prerequisites:
+#   - AMD GPU with ROCm drivers installed (MI210/MI250/MI300X)
+#   - Docker with --device support for /dev/kfd and /dev/dri
+#   - At least 16 GB VRAM (32 GB+ recommended for 7B+ models)
+
+services:
+  # ────────────────────────────────────────────────────────────
+  # vLLM — OpenAI-compatible LLM inference server on AMD ROCm
+  # ────────────────────────────────────────────────────────────
+  vllm:
+    image: rocm/vllm:latest
+    container_name: research-vllm
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render
+    security_opt:
+      - seccomp:unconfined
+    ipc: host
+    ports:
+      - "8000:8000"
+    volumes:
+      - vllm-cache:/root/.cache
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+      - VLLM_WORKER_MULTIPROC_METHOD=spawn
+    command: >
+      --model ${VLLM_MODEL:-meta-llama/Llama-3.1-8B-Instruct}
+      --dtype auto
+      --max-model-len ${VLLM_MAX_MODEL_LEN:-8192}
+      --gpu-memory-utilization 0.90
+      --tensor-parallel-size ${VLLM_TP_SIZE:-1}
+      --port 8000
+      --trust-remote-code
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  # ────────────────────────────────────────────────────────────
+  # Qdrant — Vector database
+  # ────────────────────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:v1.12.6
+    container_name: research-qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ────────────────────────────────────────────────────────────
+  # Python Embedding Sidecar — BGE-M3 (CPU or optional ROCm)
+  # ────────────────────────────────────────────────────────────
+  py-embed:
+    build:
+      context: ./embedding-sidecar
+    container_name: research-embed
+    ports:
+      - "8089:8089"
+    environment:
+      - DEVICE=${EMBED_DEVICE:-cpu}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8089/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # ────────────────────────────────────────────────────────────
+  # NestJS Backend
+  # ────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./agentic-research-assistant-be
+      dockerfile: Dockerfile
+    container_name: research-backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.development
+    environment:
+      # Override to point to vLLM container within Docker network
+      - LLM_API_BASE_URL=http://vllm:8000
+      - EMBED_LOCAL_URL=http://py-embed:8089
+      - QDRANT_URL=http://qdrant:6333
+    depends_on:
+      vllm:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      py-embed:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ────────────────────────────────────────────────────────────
+  # Next.js Frontend
+  # ────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./agentic-research-assistant-fe
+      dockerfile: Dockerfile
+    container_name: research-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8080
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  vllm-cache:
+  qdrant-data:

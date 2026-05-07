@@ -1,9 +1,12 @@
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
 export class OpenAiCompatibleLlmProvider {
+    private readonly logger = new Logger(OpenAiCompatibleLlmProvider.name);
+
     constructor(private readonly config: ConfigService) {}
 
     async chat(args: { messages: ChatMessage[] }) {
@@ -20,6 +23,9 @@ export class OpenAiCompatibleLlmProvider {
 
         const url = `${baseUrl.replace(/\/+$/, '')}/v1/chat/completions`;
 
+        const startTime = Date.now();
+        this.logger.log(`LLM request → model=${model} | messages=${args.messages.length} | maxTokens=${maxTokens}`);
+
         const res = await axios.post(
             url,
             {
@@ -34,11 +40,20 @@ export class OpenAiCompatibleLlmProvider {
             },
         );
 
+        const latencyMs = Date.now() - startTime;
+        const usage = res.data?.usage;
+        const promptTokens = usage?.prompt_tokens ?? 'N/A';
+        const completionTokens = usage?.completion_tokens ?? 'N/A';
+        const totalTokens = usage?.total_tokens ?? 'N/A';
+
+        this.logger.log(
+            `LLM response ← ${latencyMs}ms | tokens: prompt=${promptTokens} completion=${completionTokens} total=${totalTokens}`,
+        );
+
         const content = res.data?.choices?.[0]?.message?.content;
         if (typeof content !== 'string' || !content.trim()) {
             throw new Error('LLM response missing choices[0].message.content');
         }
-        return { content };
+        return { content, latencyMs, usage };
     }
 }
-

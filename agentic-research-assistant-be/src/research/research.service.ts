@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { EmbeddingService } from '@/embedding/embedding.service.js';
 import { VectorsService } from '@/vectors/vectors.service.js';
 import type { ResearchRequestDto, ResearchResponse, ResearchSource } from './dto/research.dto.js';
+import { runResearchGraph, type WorkflowConfig } from './graph/agent.workflow.js';
 import { OpenAiCompatibleLlmProvider } from './llm/openai-compatible-llm.provider.js';
 
 type RetrievedHit = {
@@ -25,6 +26,74 @@ export class ResearchService {
 
     async research(dto: ResearchRequestDto): Promise<ResearchResponse> {
         const query = dto.query.trim();
+
+        // Determine whether to use the LangGraph A2A pipeline
+        const useLangGraph = (this.config.get<string>('LANGGRAPH_ENABLED') ?? 'true') !== 'false';
+
+        if (useLangGraph) {
+            return this.researchWithGraph(query, dto);
+        }
+        return this.researchLegacy(query, dto);
+    }
+
+    /**
+     * A2A LangGraph pipeline:
+     * Supervisor -> Researcher (Qdrant + Web Search + Web Reader) -> Writer
+     */
+    private async researchWithGraph(query: string, dto: ResearchRequestDto): Promise<ResearchResponse> {
+        const llmBaseUrl = (this.config.get<string>('LLM_API_BASE_URL') ?? '').trim();
+        const llmModel = (this.config.get<string>('LLM_MODEL') ?? '').trim();
+        const llmApiKey = (this.config.get<string>('LLM_API_KEY') ?? '').trim();
+        const tavilyApiKey = (this.config.get<string>('TAVILY_API_KEY') ?? '').trim();
+        const maxSteps = Number(this.config.get<string>('LANGGRAPH_MAX_RESEARCH_STEPS') ?? '3');
+
+        if (!llmBaseUrl || !llmModel) {
+            this.logger.warn('LLM not configured — falling back to legacy RAG pipeline.');
+            return this.researchLegacy(query, dto);
+        }
+
+        const workflowConfig: WorkflowConfig = {
+            llmBaseUrl,
+            llmModel,
+            llmApiKey,
+            tavilyApiKey,
+            maxResearchSteps: maxSteps,
+            embeddingService: this.embedding,
+            vectorsService: this.vectors,
+        };
+
+        this.logger.log(`Starting LangGraph A2A pipeline for query: "${query.slice(0, 80)}..."`);
+        const startTime = Date.now();
+
+        const result = await runResearchGraph(workflowConfig, query);
+
+        const elapsedMs = Date.now() - startTime;
+        this.logger.log(`LangGraph pipeline completed in ${elapsedMs}ms | LLM used: ${result.llmUsed} | Steps: ${result.researchSteps}`);
+
+        // Map graph sources to ResearchSource format
+        const sources: ResearchSource[] = (result.sources ?? []).map((s) => ({
+            chunkId: (s.chunkId as string) ?? '',
+            url: (s.url as string) ?? undefined,
+            title: (s.title as string) ?? undefined,
+            publishedAt: (s.publishedAt as string) ?? undefined,
+            score: typeof s.score === 'number' ? s.score : undefined,
+            credibilityWeight: typeof s.credibilityWeight === 'number' ? s.credibilityWeight : undefined,
+        })).filter((s) => s.chunkId);
+
+        return {
+            answer: result.answer,
+            sources,
+            retrievedCount: sources.length,
+            llmUsed: result.llmUsed,
+            isExtractiveFallback: result.isExtractiveFallback,
+        };
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Legacy linear RAG pipeline (Phase 2 — preserved as fallback)
+    // ────────────────────────────────────────────────────────────────────
+
+    private async researchLegacy(query: string, dto: ResearchRequestDto): Promise<ResearchResponse> {
         const topK = dto.topK ?? 5;
         const applyCredibilityBoost = dto.applyCredibilityBoost ?? true;
 
@@ -206,4 +275,3 @@ export class ResearchService {
         return err instanceof Error ? err.message : String(err);
     }
 }
-
