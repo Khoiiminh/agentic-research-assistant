@@ -60,3 +60,10 @@ pids
 *.pid
 *.seed
 *.pid.lock
+
+# ---- Local config ----
+CLAUDE.local.md
+
+agentic-research-assistant-be/agentic-research-assistant_api_key.txt
+
+.cursor/
